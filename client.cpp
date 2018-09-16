@@ -98,7 +98,7 @@ write(sockfd, &ch, 1);
 read(sockfd, &ch, 1);
 printf("char from server = %c\n", ch);
 */
-
+/*
 size_t datasize;
 FILE* fd = fopen("file", "wb");
 char buffer[256];
@@ -109,7 +109,9 @@ while (datasize)
     fwrite(&buffer, 1, datasize, fd);
 }
 fclose(fd);
-
+*/
+char *buffer="hi";
+send(sockfd, buffer, 3, 0);
 close(sockfd);
 exit(0);
 }
