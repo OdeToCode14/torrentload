@@ -1,6 +1,6 @@
 #include <bits/stdc++.h>
 #include <stdio.h>
-#include <string.h>
+#include <string>
 #include <openssl/sha.h>
 
 #include <iostream>
@@ -9,6 +9,21 @@
 #define chunk_size (1<<19)
 
 using namespace std;
+
+
+string get_complete_sha(string word){
+	string sha1_hash="";
+	const char * arr=word.c_str();
+	unsigned char out[20];
+
+	SHA1((unsigned char*)arr, strlen(arr),out);
+	stringstream s;
+	for (int i = 0; i < 20; ++i) 
+		s << hex << setfill('0') << setw(2) << (unsigned short) out[i];
+		        //cout << s.str() << "\n";
+	string hash=s.str();
+	return hash;
+}
 
 string get_hash(string path){
 	string sha1_hash="";
@@ -72,7 +87,7 @@ string get_file_name_from_path(string current){  // obtain name of file or direc
   directory_name=current.substr(ind + 1);
   return directory_name;
 }
-
+/*
 int main(int argc,const char *argv[]){
 	string tracker1=argv[1];
 	string tracker2=argv[2];
@@ -110,7 +125,7 @@ int main(int argc,const char *argv[]){
     return 0;
 }
 
-
+*/
 /*
 int main(int argc, const char *argv[]){
 	string path=argv[1];

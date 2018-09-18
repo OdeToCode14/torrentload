@@ -9,6 +9,9 @@
 #include <string>
 #include <bits/stdc++.h>
 
+#include "create_sha.h"
+#include "client.h"
+
 using namespace std;
 string my_address;
 
@@ -51,37 +54,157 @@ int get_tracker_connection(){
     return tracker_socket_id;
 }
 
+vector<string> process_command(string command){  // improve for multiple spaces
+      char delimiter=' ';
+      vector<string> processed_command;
+      stringstream ss(command);
+      string token;
+     
+      while(getline(ss, token, delimiter)) {
+        processed_command.push_back(token);
+      }
+      return processed_command;
+}
+
+void share_file(int tracker_socket_id , vector<string> processed_command){ // incomplete
+
+    string file_path=processed_command[1];
+    string torrent_file_name=processed_command[2];
+
+    string file_name=get_file_name_from_path(file_path);
+    //cout<<name<<"\n";
+    streampos file_size;
+
+    ifstream file (file_path, ios::in|ios::binary|ios::ate);
+    if (file.is_open()){
+        file_size = file.tellg();   
+        file.seekg (0, ios::beg);
+        file.close();
+    }
+    else{
+        cout<<"file does not exist\n";
+        return;
+    }
+
+    string hash=get_hash(file_path);
+    //string hash_of_hash=();
+
+    ofstream torrent_file;
+    torrent_file.open (torrent_file_name.c_str());
+
+    torrent_file << tracker_one_address <<"\n";
+    torrent_file << tracker_two_address <<"\n";
+    torrent_file << file_name <<"\n";
+    torrent_file << file_size <<"\n";
+    torrent_file << hash <<"\n";
+    torrent_file.close();
+    //cout<<hash<<"\n";
+    string hash_of_hash=get_complete_sha(hash);
+
+
+            
+
+    send_message(tracker_socket_id,processed_command[0]);
+    string response=receive_message(tracker_socket_id);
+    cout<<response<<"\n";
+
+    send_message(tracker_socket_id,file_name);
+    response=receive_message(tracker_socket_id);
+    cout<<response<<"\n";
+    send_message(tracker_socket_id,hash_of_hash);
+    response=receive_message(tracker_socket_id);
+    cout<<response<<"\n";
+    send_message(tracker_socket_id,my_address);
+    response=receive_message(tracker_socket_id);
+    cout<<response<<"\n";
+
+    //start seeding 
+}
+
+string get_last_line(ifstream& in){
+    string line;
+    while (in >> ws && getline(in, line)); // skip empty lines
+
+    return line;
+}
+
+void get_file(int tracker_socket_id, vector<string> processed_command){  // incomplete code
+    string torrent_file_path=processed_command[1];
+    string destination_path=processed_command[2];
+
+    string hash;
+    ifstream in(torrent_file_path);
+    if (in){
+        hash = get_last_line(in);
+        cout <<"here "<< hash << '\n';
+    }
+    else{
+        cout << "Unable to open torrent file.\n";
+        return;
+    }
+
+    string hash_of_hash=get_complete_sha(hash);
+
+    send_message(tracker_socket_id,processed_command[0]);
+    string response=receive_message(tracker_socket_id);
+    cout<<response<<"\n";
+    send_message(tracker_socket_id,hash_of_hash);
+    response=receive_message(tracker_socket_id);
+    cout<<response<<"\n";
+
+
+    // contact response list
+}
+
+void remove_file(int tracker_socket_id, vector<string> processed_command){
+    string torrent_file_path=processed_command[1];
+    //cout<<"removing "<<torrent_file_path<<"\n";
+    string hash;
+    ifstream in(torrent_file_path);
+    if (in){
+        hash = get_last_line(in);
+        cout <<"here "<< hash << '\n';
+    }
+    else{
+        cout << "Unable to open torrent file.\n";
+        return;
+    }
+    string hash_of_hash=get_complete_sha(hash);
+    send_message(tracker_socket_id,processed_command[0]);
+    string response=receive_message(tracker_socket_id);
+    cout<<response<<"\n";
+    send_message(tracker_socket_id,hash_of_hash);
+    response=receive_message(tracker_socket_id);
+    cout<<response<<"\n";
+    send_message(tracker_socket_id,my_address);
+    response=receive_message(tracker_socket_id);
+    cout<<response<<"\n";
+    if (remove(torrent_file_path.c_str()) == 0)
+        cout<<"removed sucessfully\n";
+    else
+        cout<<"cannot remove\n";
+}
+
 void command_mode(){
     while(1){
         string command;
-        cin>>command;
+        getline(cin,command);
 
         int tracker_socket_id=get_tracker_connection();
 
-        if(command == "share"){
-            send_message(tracker_socket_id,command);
-            string response=receive_message(tracker_socket_id);
-            cout<<response<<"\n";
-            send_message(tracker_socket_id,"ahg.txt");
-            response=receive_message(tracker_socket_id);
-            cout<<response<<"\n";
-            send_message(tracker_socket_id,"0xfh");
-            response=receive_message(tracker_socket_id);
-            cout<<response<<"\n";
-            send_message(tracker_socket_id,"125:45:");
-            response=receive_message(tracker_socket_id);
-            cout<<response<<"\n";
+        vector<string> processed_command=process_command(command);
+        cout<<processed_command.size();
+        
+        if(processed_command[0] == "share"){
+            share_file(tracker_socket_id,processed_command);
         }
-        else if(command == "get"){
-            send_message(tracker_socket_id,command);
-            string response=receive_message(tracker_socket_id);
-            cout<<response<<"\n";
-            send_message(tracker_socket_id,"0xfh");
-            response=receive_message(tracker_socket_id);
-            cout<<response<<"\n";
+        else if(processed_command[0] == "get"){
+            get_file(tracker_socket_id,processed_command);
         }
 
-        else if(command == "remove"){
+        else if(processed_command[0] == "remove"){
+            remove_file(tracker_socket_id,processed_command);
+/*
             send_message(tracker_socket_id,command);
             string response=receive_message(tracker_socket_id);
             cout<<response<<"\n";
@@ -90,7 +213,7 @@ void command_mode(){
             cout<<response<<"\n";
             send_message(tracker_socket_id,"125:45:");
             response=receive_message(tracker_socket_id);
-            cout<<response<<"\n";
+            cout<<response<<"\n";*/
         }
     }
 }
@@ -125,6 +248,8 @@ int main(int argc,const char *argv[]){
     }
     fclose(fd);
     */
+    thread th(listen_download_requests, my_address, tracker_one_address, tracker_two_address, log_file_path);
+    th.detach();
     command_mode();
 
     close(tracker_socket_id);
