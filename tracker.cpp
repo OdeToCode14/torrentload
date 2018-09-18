@@ -13,23 +13,6 @@
 #define mk make_pair
 using namespace std;
 
-/*
-void serve(int client_socket_id){
-    //cout<<"here\n";
-    //cout<<client_socket_id<<"\n";
-    char buffer[256];
-    int BUFFER_SIZE=256;
-    int len = recv(client_socket_id, buffer, BUFFER_SIZE, 0);
-    buffer[len]='\0';
-    string message=(string) buffer;
-    cout<<buffer<<"\n";
-    for(int i=0;i<999999999;i++){
-        //cout<<"this is "<<client_socket_id<<"\n";
-    }
-    cout<<"processed\n";
-    close(client_socket_id);
-}
-*/
 
 //map<string,vector<pair<string,string>>> seeders;
 map<string,map<string,string>> seeders;
@@ -74,23 +57,11 @@ void serve(int client_socket_id){
         send_message(client_socket_id,response);
         
         //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
-        /*
-        if(seeders.find(file_hash) != seeders.end()){
-            seeders[file_hash].pb(mk(file_name,address));
-        }
-        else{
-            seeders[file_hash]=vector<pair<string,string>>();
-            seeders[file_hash].pb(mk(file_name,address));
-        }
-        */
+        
         if(seeders.find(file_hash) != seeders.end()){
             seeders[file_hash][address]=file_name;
         }
         else{
-        /*
-            seeders[file_hash]=vector<pair<string,string>>();
-            seeders[file_hash].pb(mk(file_name,address));
-        */
             seeders[file_hash]=map<string,string>();
             seeders[file_hash][address]=file_name;
         }
@@ -123,18 +94,7 @@ void serve(int client_socket_id){
         else{
             send_message(client_socket_id,"not found");
         }
-        /*
-        if(seeders.find(file_hash) != seeders.end()){
-            string seeder_list="";
-            for(int i=0;i<seeders[file_hash].size();i++){
-                seeder_list = seeder_list + seeders[file_hash][i].second+" ";
-            }
-            send_message(client_socket_id,seeder_list);
-        }
-        else{
-            send_message(client_socket_id,"not found");
-        }
-        */
+        
     }
     else if(message == "remove"){
         string response="ok";
@@ -154,18 +114,7 @@ void serve(int client_socket_id){
             else{
                 send_message(client_socket_id,"you are not in seeder list of this file");
             }
-            /*
-            for(int i=0;i<seeders[file_hash].size();i++){
-                if(seeders[file_hash][i].second == address){
-                    seeders[file_hash].erase(seeders[file_hash].begin()); //remove all entries
-                }
-            }
-            if(seeders.find(file_hash) == seeders.end()){
-                cout<<"done\n";
-            }
-            else{
-                cout<<"this "<<seeders[file_hash][0].first<<"\n";
-            }*/
+            
         }
         else{
             send_message(client_socket_id,"file not found");
@@ -214,22 +163,5 @@ int main(int argc,const char *argv[]){
         th.detach();
     }
     
-    /*
-    while(1){
-        char ch;
-        printf("server waiting\n");
-
-        client_len = sizeof(client_address);
-        client_socket_id = accept(server_socket_id,(struct sockaddr *)&client_address, &client_len);
-
-        if(fork() == 0){
-            serve(client_socket_id);
-            close(client_socket_id);
-            exit(0);
-        }
-        else {
-            close(client_socket_id);
-        }
-    }
-    */
+    
 }
