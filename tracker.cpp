@@ -31,8 +31,8 @@ void serve(int client_socket_id){
 }
 */
 
-map<string,vector<pair<string,string>>> seeders;
-
+//map<string,vector<pair<string,string>>> seeders;
+map<string,map<string,string>> seeders;
 string get_ip_address(string address){
     int ind=address.find(":");
     string ip_address=address.substr(0,ind);
@@ -74,7 +74,7 @@ void serve(int client_socket_id){
         send_message(client_socket_id,response);
         
         //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
-        
+        /*
         if(seeders.find(file_hash) != seeders.end()){
             seeders[file_hash].pb(mk(file_name,address));
         }
@@ -82,7 +82,19 @@ void serve(int client_socket_id){
             seeders[file_hash]=vector<pair<string,string>>();
             seeders[file_hash].pb(mk(file_name,address));
         }
-        //cout<<seeders[file_hash][0].first<<" rand "<<seeders[file_hash][0].second<<"\n";
+        */
+        if(seeders.find(file_hash) != seeders.end()){
+            seeders[file_hash][address]=file_name;
+        }
+        else{
+        /*
+            seeders[file_hash]=vector<pair<string,string>>();
+            seeders[file_hash].pb(mk(file_name,address));
+        */
+            seeders[file_hash]=map<string,string>();
+            seeders[file_hash][address]=file_name;
+        }
+        //cout<<"this one "<<seeder[file_hash][address]<<"\n";
 
     }
     else if(message == "get"){
@@ -93,6 +105,25 @@ void serve(int client_socket_id){
         
         //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
         
+
+        if(seeders.find(file_hash) != seeders.end()){
+            string seeder_list="";
+            bool flag=false;
+            for(auto it : seeders[file_hash]){
+                seeder_list=seeder_list + it.first +" ";
+                flag=true;
+            }
+            if(flag == false){
+                send_message(client_socket_id,"not found");
+            }
+            else{
+                send_message(client_socket_id,seeder_list);
+            }
+        }
+        else{
+            send_message(client_socket_id,"not found");
+        }
+        /*
         if(seeders.find(file_hash) != seeders.end()){
             string seeder_list="";
             for(int i=0;i<seeders[file_hash].size();i++){
@@ -103,6 +134,7 @@ void serve(int client_socket_id){
         else{
             send_message(client_socket_id,"not found");
         }
+        */
     }
     else if(message == "remove"){
         string response="ok";
@@ -115,7 +147,14 @@ void serve(int client_socket_id){
         //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
         
         if(seeders.find(file_hash) != seeders.end()){
-            string seeder_list="";
+            if(seeders[file_hash].find(address) != seeders[file_hash].end()){
+                seeders[file_hash].erase(address);
+                send_message(client_socket_id,"removed");
+            }
+            else{
+                send_message(client_socket_id,"you are not in seeder list of this file");
+            }
+            /*
             for(int i=0;i<seeders[file_hash].size();i++){
                 if(seeders[file_hash][i].second == address){
                     seeders[file_hash].erase(seeders[file_hash].begin()); //remove all entries
@@ -126,11 +165,10 @@ void serve(int client_socket_id){
             }
             else{
                 cout<<"this "<<seeders[file_hash][0].first<<"\n";
-            }
-            send_message(client_socket_id,"removed");
+            }*/
         }
         else{
-            send_message(client_socket_id,"not found");
+            send_message(client_socket_id,"file not found");
         }   
     }
     cout<<"processed\n";

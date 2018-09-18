@@ -81,7 +81,7 @@ else if(command == "get"){
     send_message(server_socket_id,command);
     string response=receive_message(server_socket_id);
     cout<<response<<"\n";
-    send_message(server_socket_id,"0xfh");
+    send_message(server_socket_id,"0xf");
     response=receive_message(server_socket_id);
     cout<<response<<"\n";
 }
