@@ -21,6 +21,18 @@ string log_file_path;
 
 int tracker_socket_id;
 
+
+string get_ip_address(string address){
+    int ind=address.find(":");
+    string ip_address=address.substr(0,ind);
+    return ip_address;
+}
+string get_port_address(string address){
+    int ind=address.find(":");
+    string ip_address=address.substr(ind+1);
+    return ip_address;
+}
+
 void send_message(int socket_id,string message){
     //cout<<"sending "<< message<<"\n";
     send(socket_id, message.c_str(), message.length()+1, 0);
@@ -35,6 +47,9 @@ string receive_message(int socket_id){
 }
 
 int get_tracker_connection(){
+    string tracker_one_ip=get_ip_address(tracker_one_address);
+    int tracker_one_port=stoi(get_port_address(tracker_one_address));
+
     int tracker_socket_id;
     int len;
     struct sockaddr_in address;
@@ -42,8 +57,8 @@ int get_tracker_connection(){
     tracker_socket_id = socket(AF_INET, SOCK_STREAM, 0);
 
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr("127.0.0.1"); //add tracker address here
-    address.sin_port = 9735;
+    address.sin_addr.s_addr = inet_addr(tracker_one_ip.c_str()); //add tracker address here
+    address.sin_port = tracker_one_port;
     len = sizeof(address);
 
     result = connect(tracker_socket_id, (struct sockaddr *)&address, len);
@@ -54,7 +69,7 @@ int get_tracker_connection(){
     return tracker_socket_id;
 }
 
-vector<string> process_command(string command){  // improve for multiple spaces
+vector<string> split_string(string command){  // improve for multiple spaces
       char delimiter=' ';
       vector<string> processed_command;
       stringstream ss(command);
@@ -128,6 +143,45 @@ string get_last_line(ifstream& in){
     return line;
 }
 
+void request_download(string response){
+    vector<string> processed_response=split_string(response);
+
+    string other_client_ip=get_ip_address(processed_response[0]);
+    int other_client_port=stoi(get_port_address(processed_response[0]));
+
+    cout<<"connecting to "<<other_client_ip <<":"<<other_client_port<<"\n";
+    
+    int other_client_socket_id;
+    int len;
+    struct sockaddr_in address;
+    int result;
+    other_client_socket_id = socket(AF_INET, SOCK_STREAM, 0);
+
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = inet_addr(other_client_ip.c_str()); //add tracker address here
+    address.sin_port = other_client_port;
+    len = sizeof(address);
+
+    result = connect(other_client_socket_id, (struct sockaddr *)&address, len);
+    if(result == -1) {
+        perror("oops: client1");
+        exit(1);
+    }
+    send_message(other_client_socket_id,"hi there dude");
+    size_t datasize;
+    FILE* fd = fopen("down_text", "wb");
+    char buffer[256];
+    int BUFFER_SIZE=256;
+    while (datasize)
+    {
+        datasize = recv(other_client_socket_id, buffer, BUFFER_SIZE, 0);
+        fwrite(&buffer, 1, datasize, fd);
+    }
+    fclose(fd);
+
+    close(other_client_socket_id);
+}
+
 void get_file(int tracker_socket_id, vector<string> processed_command){  // incomplete code
     string torrent_file_path=processed_command[1];
     string destination_path=processed_command[2];
@@ -151,7 +205,13 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
     send_message(tracker_socket_id,hash_of_hash);
     response=receive_message(tracker_socket_id);
     cout<<response<<"\n";
-
+    // check for error message before contacting
+    if(response == "not found"){
+        cout<<"No one in the network has this file right now. try after sometime\n";
+    }
+    else{
+        request_download(response);
+    }
 
     // contact response list
 }
@@ -192,7 +252,7 @@ void command_mode(){
 
         int tracker_socket_id=get_tracker_connection();
 
-        vector<string> processed_command=process_command(command);
+        vector<string> processed_command=split_string(command);
         cout<<processed_command.size();
         
         if(processed_command[0] == "share"){
@@ -231,23 +291,8 @@ int main(int argc,const char *argv[]){
 
     //start thread for acting as server
 
-    /*
-    write(sockfd, &ch, 1);
-    read(sockfd, &ch, 1);
-    printf("char from server = %c\n", ch);
-    */
-    /*
-    size_t datasize;
-    FILE* fd = fopen("file", "wb");
-    char buffer[256];
-    int BUFFER_SIZE=256;
-    while (datasize)
-    {
-        datasize = recv(sockfd, buffer, BUFFER_SIZE, 0);
-        fwrite(&buffer, 1, datasize, fd);
-    }
-    fclose(fd);
-    */
+    
+    // specify my address to uploader
     thread th(listen_download_requests, my_address, tracker_one_address, tracker_two_address, log_file_path);
     th.detach();
     command_mode();

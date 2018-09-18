@@ -1,0 +1,21 @@
+
+command for uploader client
+
+./client 127.0.0.1:9875 127.0.0.1:9735 127.0.0.1:9735 nch
+server waiting
+share abc.txt ab.mtorrent
+
+
+command for downloader client
+
+./client 127.0.0.1:9563 127.0.0.1:9735 127.0.0.1:9735 nch
+server waiting
+get ab.mtorrent .
+
+
+
+
+command for tracker
+
+./tracker 127.0.0.1:9735 127.0.0.1:865 juy juy
+

@@ -131,6 +131,10 @@ int main(int argc,const char *argv[]){
 
     string seeder_list_file_path=argv[3];
     string log_file_path=argv[4];
+
+    string my_ip=get_ip_address(my_address);
+    int my_port=stoi(get_port_address(my_address));
+
     cout<<my_address<<"\n";
     cout<<other_tracker_address<<"\n";
     cout<<seeder_list_file_path<<"\n";
@@ -141,12 +145,12 @@ int main(int argc,const char *argv[]){
     struct sockaddr_in server_address;
     struct sockaddr_in client_address;
 
-    unlink("server_socket");
+    //unlink("server_socket");
     server_socket_id = socket(AF_INET, SOCK_STREAM, 0);
 
     server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server_address.sin_port = 9735;
+    server_address.sin_addr.s_addr = inet_addr(my_ip.c_str());  // getting ip and port from user
+    server_address.sin_port = my_port;
     server_len = sizeof(server_address);
     bind(server_socket_id, (struct sockaddr *)&server_address, server_len);
 
