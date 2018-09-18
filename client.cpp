@@ -6,89 +6,40 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <thread>
+#include <string>
+#include <bits/stdc++.h>
 
-/*
-bool readdata(SOCKET sock, void *buf, int buflen)
-{
-    unsigned char *pbuf = (unsigned char *) buf;
+using namespace std;
 
-    while (buflen > 0)
-    {
-        int num = recv(sock, pbuf, buflen, 0);
-        if (num == SOCKET_ERROR)
-        {
-            if (WSAGetLastError() == WSAEWOULDBLOCK)
-            {
-                // optional: use select() to check for timeout to fail the read
-                continue;
-            }
-            return false;
-        }
-        else if (num == 0)
-            return false;
-
-        pbuf += num;
-        buflen -= num;
-    }
-
-    return true;
+void send_message(int socket_id,string message){
+    //cout<<"sending "<< message<<"\n";
+    send(socket_id, message.c_str(), message.length()+1, 0);
 }
-
-bool readlong(SOCKET sock, long *value)
-{
-    if (!readdata(sock, value, sizeof(value)))
-        return false;
-    *value = ntohl(*value);
-    return true;
+string receive_message(int socket_id){
+    char buffer[256];
+    int BUFFER_SIZE=256;
+    int length = recv(socket_id, buffer, BUFFER_SIZE, 0);
+    buffer[length]='\0';
+    string message=(string) buffer;
+    return message;
 }
-
-bool readfile(SOCKET sock, FILE *f)
-{
-    long filesize;
-    if (!readlong(sock, &filesize))
-        return false;
-    if (filesize > 0)
-    {
-        char buffer[1024];
-        do
-        {
-            int num = min(filesize, sizeof(buffer));
-            if (!readdata(sock, buffer, num))
-                return false;
-            int offset = 0;
-            do
-            {
-                size_t written = fwrite(&buffer[offset], 1, num-offset, f);
-                if (written < 1)
-                    return false;
-                offset += written;
-            }
-            while (offset < num);
-            filesize -= num;
-        }
-        while (filesize > 0);
-    }
-    return true;
-}
-
-*/
 
 int main()
 {
-int sockfd;
+int server_socket_id;
 int len;
 struct sockaddr_in address;
 int result;
 char ch = 'A';
 
-sockfd = socket(AF_INET, SOCK_STREAM, 0);
+server_socket_id = socket(AF_INET, SOCK_STREAM, 0);
 
 address.sin_family = AF_INET;
 address.sin_addr.s_addr = inet_addr("127.0.0.1");
 address.sin_port = 9735;
 len = sizeof(address);
 
-result = connect(sockfd, (struct sockaddr *)&address, len);
+result = connect(server_socket_id, (struct sockaddr *)&address, len);
 if(result == -1) {
 perror("oops: client1");
 exit(1);
@@ -110,8 +61,42 @@ while (datasize)
 }
 fclose(fd);
 */
-char *buffer="hi";
-send(sockfd, buffer, 3, 0);
-close(sockfd);
-exit(0);
+string command;
+cin>>command;
+if(command == "share"){
+    send_message(server_socket_id,command);
+    string response=receive_message(server_socket_id);
+    cout<<response<<"\n";
+    send_message(server_socket_id,"ahg.txt");
+    response=receive_message(server_socket_id);
+    cout<<response<<"\n";
+    send_message(server_socket_id,"0xfh");
+    response=receive_message(server_socket_id);
+    cout<<response<<"\n";
+    send_message(server_socket_id,"125:45:");
+    response=receive_message(server_socket_id);
+    cout<<response<<"\n";
+}
+else if(command == "get"){
+    send_message(server_socket_id,command);
+    string response=receive_message(server_socket_id);
+    cout<<response<<"\n";
+    send_message(server_socket_id,"0xfh");
+    response=receive_message(server_socket_id);
+    cout<<response<<"\n";
+}
+
+else if(command == "remove"){
+    send_message(server_socket_id,command);
+    string response=receive_message(server_socket_id);
+    cout<<response<<"\n";
+    send_message(server_socket_id,"0xfh");
+    response=receive_message(server_socket_id);
+    cout<<response<<"\n";
+    send_message(server_socket_id,"125:45:");
+    response=receive_message(server_socket_id);
+    cout<<response<<"\n";
+}
+
+close(server_socket_id);
 }
