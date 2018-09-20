@@ -180,6 +180,7 @@ void request_download(string response){
     fclose(fd);
 
     close(other_client_socket_id);
+    cout<<"Downloaded sucessfully\n";
 }
 
 void get_file(int tracker_socket_id, vector<string> processed_command){  // incomplete code
