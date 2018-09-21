@@ -8,19 +8,32 @@
 #include <thread>
 #include <string>
 #include <bits/stdc++.h>
+#include <mutex> 
 
 #include "create_sha.h"
 #include "client.h"
 
 using namespace std;
+
+mutex output_device_mtx;
+mutex seeded_list_mtx;
+
+map<string,string> seeded_list;
+
 string my_address;
 
 string tracker_one_address;
 string tracker_two_address;
 string log_file_path;
 
-int tracker_socket_id;
+//int tracker_socket_id;
 
+
+void print_on_screen(string str){
+    lock_guard<mutex> guard(output_device_mtx);
+        cout<<str<<"\n";
+    //mtx.unlock();
+}
 
 string get_ip_address(string address){
     int ind=address.find(":");
@@ -63,7 +76,8 @@ int get_tracker_connection(){
 
     result = connect(tracker_socket_id, (struct sockaddr *)&address, len);
     if(result == -1) {
-        perror("oops: client1");
+        //perror("oops: client1");
+        print_on_screen("cannot connect");
         exit(1);
     }
     return tracker_socket_id;
@@ -81,6 +95,24 @@ vector<string> split_string(string command){  // improve for multiple spaces
       return processed_command;
 }
 
+ string access_seeded_list(string operation,string hash_of_hash,string file_path){
+    lock_guard<mutex> guard(seeded_list_mtx);
+        if(operation == "add"){
+            seeded_list[hash_of_hash]=file_path;
+        }
+        else if(operation == "remove"){
+            if(seeded_list.find(hash_of_hash) != seeded_list.end()){
+                seeded_list.erase(hash_of_hash);
+            }
+        }
+        else if(operation == "get file path"){
+            if(seeded_list.find(hash_of_hash) != seeded_list.end()){
+                return seeded_list[hash_of_hash];
+            }
+        }
+    //mtx.unlock();
+ }
+
 void share_file(int tracker_socket_id , vector<string> processed_command){ // incomplete
 
     string file_path=processed_command[1];
@@ -97,7 +129,7 @@ void share_file(int tracker_socket_id , vector<string> processed_command){ // in
         file.close();
     }
     else{
-        cout<<"file does not exist\n";
+        print_on_screen("file does not exist");
         return;
     }
 
@@ -121,18 +153,19 @@ void share_file(int tracker_socket_id , vector<string> processed_command){ // in
 
     send_message(tracker_socket_id,processed_command[0]);
     string response=receive_message(tracker_socket_id);
-    cout<<response<<"\n";
+    print_on_screen(response);
 
     send_message(tracker_socket_id,file_name);
     response=receive_message(tracker_socket_id);
-    cout<<response<<"\n";
+    print_on_screen(response);
     send_message(tracker_socket_id,hash_of_hash);
     response=receive_message(tracker_socket_id);
-    cout<<response<<"\n";
+    print_on_screen(response);
     send_message(tracker_socket_id,my_address);
     response=receive_message(tracker_socket_id);
-    cout<<response<<"\n";
+    print_on_screen(response);
 
+    access_seeded_list("add",hash_of_hash,file_path);
     //start seeding 
 }
 
@@ -143,14 +176,14 @@ string get_last_line(ifstream& in){
     return line;
 }
 
-void request_download(string response){
+void request_download(string response,string hash_of_hash,string destination_path){
     vector<string> processed_response=split_string(response);
 
     string other_client_ip=get_ip_address(processed_response[0]);
     int other_client_port=stoi(get_port_address(processed_response[0]));
 
-    cout<<"connecting to "<<other_client_ip <<":"<<other_client_port<<"\n";
-    
+    //cout<<"connecting to "<<other_client_ip <<":"<<other_client_port<<"\n";
+    //print_on_screen("connecting to " + other_client_ip + ":" + other_client_port);
     int other_client_socket_id;
     int len;
     struct sockaddr_in address;
@@ -164,12 +197,13 @@ void request_download(string response){
 
     result = connect(other_client_socket_id, (struct sockaddr *)&address, len);
     if(result == -1) {
-        perror("oops: client1");
+        //perror("oops: client1");
+        print_on_screen("cannot connect");
         exit(1);
     }
-    send_message(other_client_socket_id,"hi there dude");
+    send_message(other_client_socket_id,hash_of_hash);
     size_t datasize;
-    FILE* fd = fopen("down_text", "wb");
+    FILE* fd = fopen(destination_path.c_str(), "wb");
     char buffer[256];
     int BUFFER_SIZE=256;
     while (datasize)
@@ -180,7 +214,7 @@ void request_download(string response){
     fclose(fd);
 
     close(other_client_socket_id);
-    cout<<"Downloaded sucessfully\n";
+    print_on_screen("Downloaded sucessfully");
 }
 
 void get_file(int tracker_socket_id, vector<string> processed_command){  // incomplete code
@@ -191,10 +225,10 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
     ifstream in(torrent_file_path);
     if (in){
         hash = get_last_line(in);
-        cout <<"here "<< hash << '\n';
+        //cout <<"here "<< hash << '\n';
     }
     else{
-        cout << "Unable to open torrent file.\n";
+        print_on_screen("Unable to open torrent file.");
         return;
     }
 
@@ -202,16 +236,16 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
 
     send_message(tracker_socket_id,processed_command[0]);
     string response=receive_message(tracker_socket_id);
-    cout<<response<<"\n";
+    print_on_screen(response);
     send_message(tracker_socket_id,hash_of_hash);
     response=receive_message(tracker_socket_id);
-    cout<<response<<"\n";
+    print_on_screen(response);
     // check for error message before contacting
     if(response == "not found"){
-        cout<<"No one in the network has this file right now. try after sometime\n";
+        print_on_screen("No one in the network has this file right now. try after sometime");
     }
     else{
-        request_download(response);
+        request_download(response,hash_of_hash,destination_path);
     }
 
     // contact response list
@@ -224,26 +258,29 @@ void remove_file(int tracker_socket_id, vector<string> processed_command){
     ifstream in(torrent_file_path);
     if (in){
         hash = get_last_line(in);
-        cout <<"here "<< hash << '\n';
+        //print_on_screen("here " + hash );
     }
     else{
-        cout << "Unable to open torrent file.\n";
+        print_on_screen("Unable to open torrent file.");
         return;
     }
     string hash_of_hash=get_complete_sha(hash);
     send_message(tracker_socket_id,processed_command[0]);
     string response=receive_message(tracker_socket_id);
-    cout<<response<<"\n";
+    print_on_screen(response);
     send_message(tracker_socket_id,hash_of_hash);
     response=receive_message(tracker_socket_id);
-    cout<<response<<"\n";
+    print_on_screen(response);
     send_message(tracker_socket_id,my_address);
     response=receive_message(tracker_socket_id);
-    cout<<response<<"\n";
-    if (remove(torrent_file_path.c_str()) == 0)
-        cout<<"removed sucessfully\n";
-    else
-        cout<<"cannot remove\n";
+    print_on_screen(response);
+    if (remove(torrent_file_path.c_str()) == 0){
+        print_on_screen("removed sucessfully");
+        access_seeded_list("remove",hash_of_hash,torrent_file_path);
+    }
+    else{
+        print_on_screen("cannot remove");
+    }
 }
 
 void command_mode(){
@@ -252,9 +289,10 @@ void command_mode(){
         getline(cin,command);
 
         int tracker_socket_id=get_tracker_connection();
+        print_on_screen("connected");
 
         vector<string> processed_command=split_string(command);
-        cout<<processed_command.size();
+        //cout<<processed_command.size();
         
         if(processed_command[0] == "share"){
             share_file(tracker_socket_id,processed_command);
@@ -276,6 +314,8 @@ void command_mode(){
             response=receive_message(tracker_socket_id);
             cout<<response<<"\n";*/
         }
+        close(tracker_socket_id);
+        print_on_screen("closed");
     }
 }
 
@@ -298,5 +338,5 @@ int main(int argc,const char *argv[]){
     th.detach();
     command_mode();
 
-    close(tracker_socket_id);
+    //close(tracker_socket_id);
 }

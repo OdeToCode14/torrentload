@@ -8,6 +8,7 @@
 #include <thread>
 #include <string>
 #include <bits/stdc++.h>
+#include <mutex> 
 
 #include "create_sha.h"
 #include "client.h"
@@ -15,13 +16,13 @@
 using namespace std;
 
 void serve(int client_socket_id){
-	string message=receive_message(client_socket_id);
-	cout<<message<<"\n";
-	cout<<"in service\n";
-
+	string hash_of_hash=receive_message(client_socket_id); // hash_of_hash of file requested
+	//cout<<message<<"\n";
+	//cout<<"in service\n";
+	string file_path=access_seeded_list("get file path",hash_of_hash,"");
 	char buffer[256];
 	int BUFFER_SIZE=256;
-	FILE *fd = fopen("abc.txt", "rb");
+	FILE *fd = fopen(file_path.c_str(), "rb");
 	size_t rret, wret;
 	int bytes_read;
 	while (!feof(fd)) {
@@ -59,8 +60,8 @@ void listen_download_requests(string my_address, string tracker_one_address,stri
     
     while(1) {
         char ch;
-        printf("server waiting\n");
-
+        //printf("server waiting\n");
+        print_on_screen("server waiting");
         client_len = sizeof(client_address);
         client_socket_id = accept(server_socket_id,(struct sockaddr *)&client_address, &client_len);
         thread th(serve, client_socket_id);

@@ -15,18 +15,21 @@
 #define mk make_pair
 using namespace std;
 
-mutex mtx;
+mutex output_device_mtx;
+mutex seeders_mtx;
 
 string my_address;
 string other_tracker_address;
+string seeder_list_file_path;
+string log_file_path;
 
 //map<string,vector<pair<string,string>>> seeders;
 map<string,map<string,string>> seeders;
 
 void print_on_screen(string str){
-    mtx.lock();
+   lock_guard<mutex> guard(output_device_mtx);
         cout<<str<<"\n";
-    mtx.unlock();
+    //mtx.unlock();
 }
 string get_ip_address(string address){
     int ind=address.find(":");
@@ -53,34 +56,62 @@ string receive_message(int socket_id){
     return message;
 }
 
+void access_seeders(string operation,string file_name,string file_hash,string address,int client_socket_id){ // ciritical section
+    print_on_screen(operation);
+    lock_guard<mutex> guard(seeders_mtx);
+    if(operation == "share"){
+            if(seeders.find(file_hash) != seeders.end()){
+                seeders[file_hash][address]=file_name;
+            }
+            else{
+                seeders[file_hash]=map<string,string>();
+                seeders[file_hash][address]=file_name;
+                //print_on_screen("added");
+            }
+    }
+    else if(operation == "get"){
+            if(seeders.find(file_hash) != seeders.end()){
+                string seeder_list="";
+                bool flag=false;
+                for(auto it : seeders[file_hash]){
+                    seeder_list=seeder_list + it.first +" ";
+                    flag=true;
+                }
+                if(flag == false){
+                    send_message(client_socket_id,"not found");
+                }
+                else{
+                    send_message(client_socket_id,seeder_list);
+                }
+            }
+            else{
+                send_message(client_socket_id,"not found");
+            }
+    }
+    else if(operation == "remove"){
+            if(seeders.find(file_hash) != seeders.end()){
+                if(seeders[file_hash].find(address) != seeders[file_hash].end()){
+                    seeders[file_hash].erase(address);
+                    send_message(client_socket_id,"removed");
+                }
+                else{
+                    send_message(client_socket_id,"you are not in seeder list of this file");
+                }
+            
+            }
+            else{
+                send_message(client_socket_id,"file not found");
+            }
+    }
+
+}
 void serve(int client_socket_id){
     //cout<<"here\n";
     //cout<<client_socket_id<<"\n";
     
     string message=receive_message(client_socket_id);
-    if(message == "synchronize"){
-        //string response="ok";
-        //send_message(client_socket_id,response);
-        //cout<<seeders.size()<<"\n";
-        string response="";
-        for(auto mp : seeders){
-            string hash=mp.first;
-            string list=hash+"-";
-            for(auto it : mp.second){
-                list=list + "(" + it.first + "," +it.second + ")";
-            }
-            send_message(client_socket_id,list);
-            //cout<<"sending "<<list<<"\n";
-            print_on_screen("sending "+list);
-
-            receive_message(client_socket_id);
-        }
-        send_message(client_socket_id,"done");
-        
-        //cout<<"synchronized\n";
-        return;
-    }
-    else if(message == "share"){
+    
+    if(message == "share"){
         string response="ok";
         send_message(client_socket_id,response);
         string file_name=receive_message(client_socket_id);
@@ -90,15 +121,16 @@ void serve(int client_socket_id){
         string address=receive_message(client_socket_id);
         send_message(client_socket_id,response);
         
+        access_seeders(message,file_name,file_hash,address,client_socket_id);
         //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
         
-        if(seeders.find(file_hash) != seeders.end()){
+        /*if(seeders.find(file_hash) != seeders.end()){
             seeders[file_hash][address]=file_name;
         }
         else{
             seeders[file_hash]=map<string,string>();
             seeders[file_hash][address]=file_name;
-        }
+        }*/
         //cout<<"this one "<<seeder[file_hash][address]<<"\n";
 
     }
@@ -110,8 +142,8 @@ void serve(int client_socket_id){
         
         //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
         
-
-        if(seeders.find(file_hash) != seeders.end()){
+        access_seeders(message,"",file_hash,"",client_socket_id);
+        /*if(seeders.find(file_hash) != seeders.end()){
             string seeder_list="";
             bool flag=false;
             for(auto it : seeders[file_hash]){
@@ -127,7 +159,7 @@ void serve(int client_socket_id){
         }
         else{
             send_message(client_socket_id,"not found");
-        }
+        }*/
         
     }
     else if(message == "remove"){
@@ -139,8 +171,8 @@ void serve(int client_socket_id){
         //send_message(client_socket_id,response);
         
         //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
-        
-        if(seeders.find(file_hash) != seeders.end()){
+        access_seeders(message,"",file_hash,address,client_socket_id);
+        /*if(seeders.find(file_hash) != seeders.end()){
             if(seeders[file_hash].find(address) != seeders[file_hash].end()){
                 seeders[file_hash].erase(address);
                 send_message(client_socket_id,"removed");
@@ -152,11 +184,12 @@ void serve(int client_socket_id){
         }
         else{
             send_message(client_socket_id,"file not found");
-        }   
+        }*/   
     }
     //cout<<"processed\n";
     print_on_screen("processed");
     close(client_socket_id);
+    print_on_screen("closed connection");
 }
 /*
 int get_other_tracker_connection(){
@@ -210,8 +243,8 @@ int main(int argc,const char *argv[]){
     my_address=argv[1];
     other_tracker_address=argv[2];
 
-    string seeder_list_file_path=argv[3];
-    string log_file_path=argv[4];
+    seeder_list_file_path=argv[3];
+    log_file_path=argv[4];
 
     string my_ip=get_ip_address(my_address);
     int my_port=stoi(get_port_address(my_address));
