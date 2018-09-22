@@ -110,7 +110,7 @@ void serve(int client_socket_id){
     //cout<<client_socket_id<<"\n";
     
     string message=receive_message(client_socket_id);
-    
+    print_on_screen(message);
     if(message == "share"){
         string response="ok";
         send_message(client_socket_id,response);
@@ -136,6 +136,7 @@ void serve(int client_socket_id){
     }
     else if(message == "get"){
         string response="ok";
+        //print_on_screen("got you dude");
         send_message(client_socket_id,response);
         string file_hash=receive_message(client_socket_id); // this is hash of hash
         //send_message(client_socket_id,response);

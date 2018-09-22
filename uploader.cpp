@@ -16,14 +16,22 @@
 using namespace std;
 
 void serve(int client_socket_id){
+	string response="ok";
+	string service=receive_message(client_socket_id);
+	send_message(client_socket_id,response);
+	if(service == "get bit map"){
+	   string hash_of_hash=receive_message(client_socket_id); // hash_of_hash of file
+	   string bit_map=access_seeded_list("get bit map",hash_of_hash,"","");
+		send_message(client_socket_id,bit_map);
+		return;	
+	}
 	string hash_of_hash=receive_message(client_socket_id); // hash_of_hash of file requested
 	//cout<<message<<"\n";
 	//cout<<"in service\n";
-	string response="ok";
 	send_message(client_socket_id,response);
 	string list=receive_message(client_socket_id);
 
-	string file_path=access_seeded_list("get file path",hash_of_hash,"");
+	string file_path=access_seeded_list("get file path",hash_of_hash,"","");
 
 	FILE *fd = fopen(file_path.c_str(), "rb");
 	

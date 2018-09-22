@@ -20,7 +20,7 @@ using namespace std;
 
 //of uploader
 
-extern map<string,string> seeded_list;
+extern map<string,pair<string,string>> seeded_list;
 
 void serve(int client_socket_id);
 void listen_download_requests(string my_address, string tracker_one_address,string tracker_two_address,string log_file_path);
@@ -32,5 +32,5 @@ string get_ip_address(string address);
 string get_port_address(string address);
 vector<string> split_string(string command);
 void print_on_screen(string str);
-string access_seeded_list(string operation,string hash_of_hash,string file_path);
+string access_seeded_list(string operation,string hash_of_hash,string file_path,string bit_map);
 #endif

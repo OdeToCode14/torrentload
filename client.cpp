@@ -18,7 +18,7 @@ using namespace std;
 mutex output_device_mtx;
 mutex seeded_list_mtx;
 
-map<string,string> seeded_list;
+map<string,pair<string,string>> seeded_list; // key is file hash . first part of pair is file path second bit map
 
 string my_address;
 
@@ -95,10 +95,12 @@ vector<string> split_string(string command){  // improve for multiple spaces
       return processed_command;
 }
 
- string access_seeded_list(string operation,string hash_of_hash,string file_path){
+ string access_seeded_list(string operation,string hash_of_hash,string file_path,string bit_map){
     lock_guard<mutex> guard(seeded_list_mtx);
         if(operation == "add"){
-            seeded_list[hash_of_hash]=file_path;
+            //print_on_screen(hash_of_hash+" "+file_path+" "+bit_map);
+            seeded_list[hash_of_hash]=make_pair(file_path,bit_map);
+            //print_on_screen("done sucessfully");
         }
         else if(operation == "remove"){
             if(seeded_list.find(hash_of_hash) != seeded_list.end()){
@@ -107,7 +109,12 @@ vector<string> split_string(string command){  // improve for multiple spaces
         }
         else if(operation == "get file path"){
             if(seeded_list.find(hash_of_hash) != seeded_list.end()){
-                return seeded_list[hash_of_hash];
+                return seeded_list[hash_of_hash].first;
+            }
+        }
+        else if(operation == "get bit map"){
+            if(seeded_list.find(hash_of_hash) != seeded_list.end()){
+                return seeded_list[hash_of_hash].second;
             }
         }
     //mtx.unlock();
@@ -134,6 +141,11 @@ void share_file(int tracker_socket_id , vector<string> processed_command){ // in
     }
 
     string hash=get_hash(file_path);
+    int number_of_chunks=hash.length()/20;
+    string bit_map="";                     // all 1s since it has complete file
+    for(int i=0;i<number_of_chunks;i++){
+        bit_map=bit_map+"1";
+    }
     //string hash_of_hash=();
 
     ofstream torrent_file;
@@ -165,7 +177,7 @@ void share_file(int tracker_socket_id , vector<string> processed_command){ // in
     response=receive_message(tracker_socket_id);
     print_on_screen(response);
 
-    access_seeded_list("add",hash_of_hash,file_path);
+    access_seeded_list("add",hash_of_hash,file_path,bit_map);
     //start seeding 
 }
 
@@ -245,6 +257,8 @@ void request_download(string client_address,string hash_of_hash,string destinati
         print_on_screen("cannot connect");
         exit(1);
     }
+    send_message(other_client_socket_id,"download");
+    string reply=receive_message(other_client_socket_id);
     send_message(other_client_socket_id,hash_of_hash);
     string response=receive_message(other_client_socket_id);
     print_on_screen(response);
@@ -256,30 +270,63 @@ void request_download(string client_address,string hash_of_hash,string destinati
         int BUFFER_SIZE=chunk_size;
         
             int skip=chunk_numbers[i]*chunk_size;
-            print_on_screen("skipping "+to_string(skip));
+            //print_on_screen("skipping "+to_string(skip));
             datasize = recv(other_client_socket_id, buffer, BUFFER_SIZE, 0);
-            print_on_screen("*****");
+            //print_on_screen("*****");
             fseek ( fd , skip , SEEK_SET );
-            print_on_screen("*****");
+            //print_on_screen("*****");
             fwrite(&buffer, sizeof('a'), datasize, fd);
-            print_on_screen("*****");
-            print_on_screen("written this much "+to_string(datasize));
-            print_on_screen(buffer);
+            //print_on_screen("*****");
+            //print_on_screen("written this much "+to_string(datasize));
+            //print_on_screen(buffer);
         
     }
     fclose(fd);
 
     close(other_client_socket_id);
-    print_on_screen("Downloaded sucessfully");
+    //print_on_screen("Downloaded sucessfully");
 }
 
+void start_seeding(string hash_of_hash, string file_path,int number_of_chunks){
+    string bit_map="";
+    for(int i=0;i<number_of_chunks;i++){
+        bit_map=bit_map+"0";
+    }
+    access_seeded_list("add",hash_of_hash,file_path,bit_map);
+    //print_on_screen("done sucessfully");
+}
+string get_bit_map_from_client(string client_address,string hash_of_hash){
+    string other_client_ip=get_ip_address(client_address);
+    int other_client_port=stoi(get_port_address(client_address));
+    int other_client_socket_id;
+    int len;
+    struct sockaddr_in address;
+    int result;
+    other_client_socket_id = socket(AF_INET, SOCK_STREAM, 0);
+
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = inet_addr(other_client_ip.c_str()); //add tracker address here
+    address.sin_port = other_client_port;
+    len = sizeof(address);
+
+    result = connect(other_client_socket_id, (struct sockaddr *)&address, len);
+    if(result == -1) {
+        //perror("oops: client1");
+        print_on_screen("cannot connect");
+        exit(1);
+    }
+    send_message(other_client_socket_id,"get bit map");
+    receive_message(other_client_socket_id);
+    send_message(other_client_socket_id,hash_of_hash);
+    string response=receive_message(other_client_socket_id);
+    print_on_screen("got this bit_map "+response);
+    return response;
+}
 
 void get_file(int tracker_socket_id, vector<string> processed_command){  // incomplete code
     string torrent_file_path=processed_command[1];
     string destination_path=processed_command[2];
-    FILE* fd = fopen(destination_path.c_str(), "w");
-    fclose(fd);
-
+    
     string hash;
     ifstream in(torrent_file_path);
     if (in){
@@ -292,10 +339,11 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
     }
     int number_of_chunks=hash.length()/20;
     string hash_of_hash=get_complete_sha(hash);
-
+    print_on_screen(processed_command[0]);
     send_message(tracker_socket_id,processed_command[0]);
     string response=receive_message(tracker_socket_id);
-    print_on_screen(response);
+    print_on_screen("resp is "+response);
+    //print_on_screen("here");
     send_message(tracker_socket_id,hash_of_hash);
     response=receive_message(tracker_socket_id);
     print_on_screen(response);
@@ -304,13 +352,24 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
         print_on_screen("No one in the network has this file right now. try after sometime");
     }
     else{ //code for deciding chunk distribution
+
+        FILE* fd = fopen(destination_path.c_str(), "w");  //create the file first
+        fclose(fd);
+        //start_seeding(hash_of_hash,destination_path,number_of_chunks); // start seeding this file
         vector<string> seeder_list=split_string(response);
-        vector<int> chunk_numbers_one;
-        print_on_screen("chunk_size " + to_string(chunk_size) + "lenght of hash " + to_string(hash.length()));
-        print_on_screen("number of chunks "+to_string(number_of_chunks));
+        int number_of_seeders=seeder_list.size();
+        vector<string> bit_maps_of_seeders(number_of_seeders);
+        for(int i=0;i<number_of_seeders;i++){
+            string bit_map=get_bit_map_from_client(seeder_list[i],hash_of_hash);
+            print_on_screen("seeders are "+seeder_list[i]);
+            print_on_screen("bit_map "+bit_map);
+        }
+       /* vector<int> chunk_numbers_one;
+        //print_on_screen("chunk_size " + to_string(chunk_size) + "lenght of hash " + to_string(hash.length()));
+        //print_on_screen("number of chunks "+to_string(number_of_chunks));
         for(int i=0;i<number_of_chunks/2;i++){
             chunk_numbers_one.push_back(i);
-            print_on_screen("chunk_numbers " + to_string(chunk_numbers_one[i]));
+            //print_on_screen("chunk_numbers " + to_string(chunk_numbers_one[i]));
         }
         vector<int> chunk_numbers_two;
         for(int i=number_of_chunks/2;i<number_of_chunks;i++){
@@ -322,7 +381,7 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
         thread th2(request_download,seeder_list[1],hash_of_hash,destination_path,chunk_numbers_two);
         th1.join();
         th2.join();
-        
+        */
     }
 
     // contact response list
@@ -353,7 +412,7 @@ void remove_file(int tracker_socket_id, vector<string> processed_command){
     print_on_screen(response);
     if (remove(torrent_file_path.c_str()) == 0){
         print_on_screen("removed sucessfully");
-        access_seeded_list("remove",hash_of_hash,torrent_file_path);
+        access_seeded_list("remove",hash_of_hash,torrent_file_path,"");
     }
     else{
         print_on_screen("cannot remove");
@@ -376,6 +435,8 @@ void command_mode(){
         }
         else if(processed_command[0] == "get"){
             get_file(tracker_socket_id,processed_command);
+            //thread th(get_file,tracker_socket_id,processed_command);
+            //th.detach();          // seperate thread for each download
         }
 
         else if(processed_command[0] == "remove"){
