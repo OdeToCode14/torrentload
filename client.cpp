@@ -217,7 +217,7 @@ string get_last_line(ifstream& in){
     print_on_screen("Downloaded sucessfully");
 }*/
 
-void request_download(string client_address,string hash_of_hash,string destination_path,vector<int> &chunk_numbers){
+void request_download(string client_address,string hash_of_hash,string destination_path,vector<int> chunk_numbers){
     //vector<string> processed_response=split_string(response);
     string chunk_numbers_str="";
     for(int i=0;i<chunk_numbers.size();i++){
@@ -316,13 +316,13 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
         for(int i=number_of_chunks/2;i<number_of_chunks;i++){
             chunk_numbers_two.push_back(i);
         }
-        request_download(seeder_list[0],hash_of_hash,destination_path,chunk_numbers_one);
-        request_download(seeder_list[1],hash_of_hash,destination_path,chunk_numbers_two);
-       /* thread th1(request_download,seeder_list[0],hash_of_hash,destination_path,chunk_numbers_one);
-        th1.join();
+        //request_download(seeder_list[0],hash_of_hash,destination_path,chunk_numbers_one);
+        //request_download(seeder_list[1],hash_of_hash,destination_path,chunk_numbers_two);
+        thread th1(request_download,seeder_list[0],hash_of_hash,destination_path,chunk_numbers_one);
         thread th2(request_download,seeder_list[1],hash_of_hash,destination_path,chunk_numbers_two);
+        th1.join();
         th2.join();
-        */
+        
     }
 
     // contact response list
