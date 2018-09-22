@@ -176,7 +176,7 @@ string get_last_line(ifstream& in){
     return line;
 }
 
-void request_download(string response,string hash_of_hash,string destination_path){
+/*void request_download(string response,string hash_of_hash,string destination_path){
     vector<string> processed_response=split_string(response);
 
     string other_client_ip=get_ip_address(processed_response[0]);
@@ -215,11 +215,70 @@ void request_download(string response,string hash_of_hash,string destination_pat
 
     close(other_client_socket_id);
     print_on_screen("Downloaded sucessfully");
+}*/
+
+void request_download(string client_address,string hash_of_hash,string destination_path,vector<int> &chunk_numbers){
+    //vector<string> processed_response=split_string(response);
+    string chunk_numbers_str="";
+    for(int i=0;i<chunk_numbers.size();i++){
+        chunk_numbers_str=chunk_numbers_str+to_string(chunk_numbers[i])+" ";
+    }
+    string other_client_ip=get_ip_address(client_address);
+    int other_client_port=stoi(get_port_address(client_address));
+
+    //cout<<"connecting to "<<other_client_ip <<":"<<other_client_port<<"\n";
+    //print_on_screen("connecting to " + other_client_ip + ":" + other_client_port);
+    int other_client_socket_id;
+    int len;
+    struct sockaddr_in address;
+    int result;
+    other_client_socket_id = socket(AF_INET, SOCK_STREAM, 0);
+
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = inet_addr(other_client_ip.c_str()); //add tracker address here
+    address.sin_port = other_client_port;
+    len = sizeof(address);
+
+    result = connect(other_client_socket_id, (struct sockaddr *)&address, len);
+    if(result == -1) {
+        //perror("oops: client1");
+        print_on_screen("cannot connect");
+        exit(1);
+    }
+    send_message(other_client_socket_id,hash_of_hash);
+    string response=receive_message(other_client_socket_id);
+    print_on_screen(response);
+    send_message(other_client_socket_id,chunk_numbers_str);
+    size_t datasize;
+    FILE* fd = fopen(destination_path.c_str(), "r+b");
+    for(int i=0;i<chunk_numbers.size();i++){
+        char buffer[chunk_size + 1];
+        int BUFFER_SIZE=chunk_size;
+        
+            int skip=chunk_numbers[i]*chunk_size;
+            print_on_screen("skipping "+to_string(skip));
+            datasize = recv(other_client_socket_id, buffer, BUFFER_SIZE, 0);
+            print_on_screen("*****");
+            fseek ( fd , skip , SEEK_SET );
+            print_on_screen("*****");
+            fwrite(&buffer, sizeof('a'), datasize, fd);
+            print_on_screen("*****");
+            print_on_screen("written this much "+to_string(datasize));
+            print_on_screen(buffer);
+        
+    }
+    fclose(fd);
+
+    close(other_client_socket_id);
+    print_on_screen("Downloaded sucessfully");
 }
+
 
 void get_file(int tracker_socket_id, vector<string> processed_command){  // incomplete code
     string torrent_file_path=processed_command[1];
     string destination_path=processed_command[2];
+    FILE* fd = fopen(destination_path.c_str(), "w");
+    fclose(fd);
 
     string hash;
     ifstream in(torrent_file_path);
@@ -231,7 +290,7 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
         print_on_screen("Unable to open torrent file.");
         return;
     }
-
+    int number_of_chunks=hash.length()/20;
     string hash_of_hash=get_complete_sha(hash);
 
     send_message(tracker_socket_id,processed_command[0]);
@@ -244,8 +303,26 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
     if(response == "not found"){
         print_on_screen("No one in the network has this file right now. try after sometime");
     }
-    else{
-        request_download(response,hash_of_hash,destination_path);
+    else{ //code for deciding chunk distribution
+        vector<string> seeder_list=split_string(response);
+        vector<int> chunk_numbers_one;
+        print_on_screen("chunk_size " + to_string(chunk_size) + "lenght of hash " + to_string(hash.length()));
+        print_on_screen("number of chunks "+to_string(number_of_chunks));
+        for(int i=0;i<number_of_chunks/2;i++){
+            chunk_numbers_one.push_back(i);
+            print_on_screen("chunk_numbers " + to_string(chunk_numbers_one[i]));
+        }
+        vector<int> chunk_numbers_two;
+        for(int i=number_of_chunks/2;i<number_of_chunks;i++){
+            chunk_numbers_two.push_back(i);
+        }
+        request_download(seeder_list[0],hash_of_hash,destination_path,chunk_numbers_one);
+        request_download(seeder_list[1],hash_of_hash,destination_path,chunk_numbers_two);
+       /* thread th1(request_download,seeder_list[0],hash_of_hash,destination_path,chunk_numbers_one);
+        th1.join();
+        thread th2(request_download,seeder_list[1],hash_of_hash,destination_path,chunk_numbers_two);
+        th2.join();
+        */
     }
 
     // contact response list

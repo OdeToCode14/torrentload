@@ -11,6 +11,7 @@
 #include <iostream>
 #include <fstream>
 #define chunk_size (1<<19)
+//#define chunk_size (3)
 using namespace std;
 
 string get_complete_sha(string word);
