@@ -357,13 +357,47 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
         fclose(fd);
         //start_seeding(hash_of_hash,destination_path,number_of_chunks); // start seeding this file
         vector<string> seeder_list=split_string(response);
+        vector<string> bit_map_list=split_string(response);
         int number_of_seeders=seeder_list.size();
         vector<string> bit_maps_of_seeders(number_of_seeders);
         for(int i=0;i<number_of_seeders;i++){
             string bit_map=get_bit_map_from_client(seeder_list[i],hash_of_hash);
-            print_on_screen("seeders are "+seeder_list[i]);
-            print_on_screen("bit_map "+bit_map);
+            bit_map_list[i]=bit_map;
+            //print_on_screen("seeders are "+seeder_list[i]);
+            //print_on_screen("bit_map "+bit_map);
         }
+
+        vector<thread> thrs;
+
+        vector<vector<int>> chunks_from_seeder(number_of_seeders);
+        for(int i=0;i<number_of_chunks;i++){
+            int start=rand()%number_of_seeders ;
+            print_on_screen("start is "+to_string(start));
+            int use=start;
+            while(true){
+                if(bit_map_list[use][i] == '1'){
+                    chunks_from_seeder[use].push_back(i);
+                    break;
+                }
+                else{
+                    use=(use+1)%number_of_seeders;
+                    if(use == start){
+                        print_on_screen("chunk missing");
+                        break;
+                    }
+                }
+            }
+        }
+        for(int i=0;i<number_of_seeders;i++){
+            if(chunks_from_seeder[i].size() > 0){
+                thrs.push_back(thread(request_download,seeder_list[i],hash_of_hash,destination_path,chunks_from_seeder[i]));
+            }
+        }
+
+        for(int i=0;i<thrs.size();i++){
+            thrs[i].join();
+        }
+
        /* vector<int> chunk_numbers_one;
         //print_on_screen("chunk_size " + to_string(chunk_size) + "lenght of hash " + to_string(hash.length()));
         //print_on_screen("number of chunks "+to_string(number_of_chunks));
