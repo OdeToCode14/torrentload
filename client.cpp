@@ -17,9 +17,10 @@ using namespace std;
 
 mutex output_device_mtx;
 mutex seeded_list_mtx;
+mutex download_list_mtx;
 
 map<string,pair<string,string>> seeded_list; // key is file hash . first part of pair is file path second bit map
-
+map<string,string> download_list; // key is file path. second part download status . key is filepath and not file hash as multiple files can be downloaded at different paths
 string my_address;
 
 string tracker_one_address;
@@ -95,6 +96,23 @@ vector<string> split_string(string command){  // improve for multiple spaces
       return processed_command;
 }
 
+string access_download_list(string operation,string file_path){
+    lock_guard<mutex> guard(download_list_mtx);
+        if(operation == "add"){
+            download_list[file_path]="[D]";
+        }
+        else if(operation=="downloaded"){
+            download_list[file_path]="[S]";
+        }
+        else if(operation == "show downloads"){
+            print_on_screen("DOWNLOAD LIST");
+            for(auto it : download_list){
+                print_on_screen(it.second + " " + it.first);
+                print_on_screen("");
+            }
+        }
+}
+
  string access_seeded_list(string operation,string hash_of_hash,string file_path,string bit_map){
     lock_guard<mutex> guard(seeded_list_mtx);
         if(operation == "add"){
@@ -137,6 +155,7 @@ void share_file(int tracker_socket_id , vector<string> processed_command){ // in
     }
     else{
         print_on_screen("file does not exist");
+        close(tracker_socket_id);
         return;
     }
 
@@ -179,6 +198,7 @@ void share_file(int tracker_socket_id , vector<string> processed_command){ // in
 
     access_seeded_list("add",hash_of_hash,file_path,bit_map);
     //start seeding 
+    close(tracker_socket_id);
 }
 
 string get_last_line(ifstream& in){
@@ -275,7 +295,7 @@ void request_download(string client_address,string hash_of_hash,string destinati
             //print_on_screen("*****");
             fseek ( fd , skip , SEEK_SET );
             //print_on_screen("*****");
-            fwrite(&buffer, sizeof('a'), datasize, fd);
+            fwrite(&buffer, 1, datasize, fd);
             //print_on_screen("*****");
             //print_on_screen("written this much "+to_string(datasize));
             //print_on_screen(buffer);
@@ -324,6 +344,7 @@ string get_bit_map_from_client(string client_address,string hash_of_hash){
 }
 
 void get_file(int tracker_socket_id, vector<string> processed_command){  // incomplete code
+    print_on_screen("working here");
     string torrent_file_path=processed_command[1];
     string destination_path=processed_command[2];
     
@@ -335,6 +356,7 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
     }
     else{
         print_on_screen("Unable to open torrent file.");
+        close(tracker_socket_id);
         return;
     }
     int number_of_chunks=hash.length()/20;
@@ -388,15 +410,21 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
                 }
             }
         }
+        access_download_list("add",destination_path);
+        //access_download_list("show downloads",destination_path);
         for(int i=0;i<number_of_seeders;i++){
             if(chunks_from_seeder[i].size() > 0){
                 thrs.push_back(thread(request_download,seeder_list[i],hash_of_hash,destination_path,chunks_from_seeder[i]));
             }
         }
+        
 
+        //thread th(wait_for_download,ref(thrs));
+        //th.detach();
         for(int i=0;i<thrs.size();i++){
             thrs[i].join();
         }
+        access_download_list("downloaded",destination_path);
 
        /* vector<int> chunk_numbers_one;
         //print_on_screen("chunk_size " + to_string(chunk_size) + "lenght of hash " + to_string(hash.length()));
@@ -417,6 +445,7 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
         th2.join();
         */
     }
+    close(tracker_socket_id);
 
     // contact response list
 }
@@ -432,6 +461,7 @@ void remove_file(int tracker_socket_id, vector<string> processed_command){
     }
     else{
         print_on_screen("Unable to open torrent file.");
+        close(tracker_socket_id);
         return;
     }
     string hash_of_hash=get_complete_sha(hash);
@@ -451,9 +481,10 @@ void remove_file(int tracker_socket_id, vector<string> processed_command){
     else{
         print_on_screen("cannot remove");
     }
+    close(tracker_socket_id);
 }
 
-void command_mode(){
+void command_mode(){ // give the responsibilty of closing socket to function called
     while(1){
         string command;
         getline(cin,command);
@@ -463,14 +494,14 @@ void command_mode(){
 
         vector<string> processed_command=split_string(command);
         //cout<<processed_command.size();
-        
+        //print_on_screen(processed_command[0]);
         if(processed_command[0] == "share"){
             share_file(tracker_socket_id,processed_command);
         }
         else if(processed_command[0] == "get"){
-            get_file(tracker_socket_id,processed_command);
-            //thread th(get_file,tracker_socket_id,processed_command);
-            //th.detach();          // seperate thread for each download
+            //get_file(tracker_socket_id,processed_command);
+            thread th(get_file,tracker_socket_id,processed_command);
+            th.detach();          // seperate thread for each download
         }
 
         else if(processed_command[0] == "remove"){
@@ -486,8 +517,13 @@ void command_mode(){
             response=receive_message(tracker_socket_id);
             cout<<response<<"\n";*/
         }
-        close(tracker_socket_id);
-        print_on_screen("closed");
+        else if(processed_command[0] == "show" && processed_command[1]=="downloads"){
+            //print_on_screen("here dude "+processed_command[0]);
+            access_download_list("show downloads","");
+            close(tracker_socket_id);
+        }
+        //close(tracker_socket_id);  // give the responsibilty of closing socket to function called
+        //print_on_screen("closed");
     }
 }
 
