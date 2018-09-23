@@ -26,6 +26,8 @@ string log_file_path;
 //map<string,vector<pair<string,string>>> seeders;
 map<string,map<string,string>> seeders;
 
+int get_other_tracker_connection();
+
 void print_on_screen(string str){
    lock_guard<mutex> guard(output_device_mtx);
         cout<<str<<"\n";
@@ -122,6 +124,21 @@ void serve(int client_socket_id){
         send_message(client_socket_id,response);
         
         access_seeders(message,file_name,file_hash,address,client_socket_id);
+
+
+        int other_tracker_socket_id=get_other_tracker_connection();
+        if(other_tracker_socket_id != -1){
+            send_message(other_tracker_socket_id,"share from tracker");
+            string reply=receive_message(other_tracker_socket_id);
+            send_message(other_tracker_socket_id,file_name);
+            reply=receive_message(other_tracker_socket_id);
+            send_message(other_tracker_socket_id,file_hash);
+            reply=receive_message(other_tracker_socket_id);
+            send_message(other_tracker_socket_id,address);
+            reply=receive_message(other_tracker_socket_id);
+            close(other_tracker_socket_id);
+        }
+
         //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
         
         /*if(seeders.find(file_hash) != seeders.end()){
@@ -173,6 +190,16 @@ void serve(int client_socket_id){
         
         //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
         access_seeders(message,"",file_hash,address,client_socket_id);
+
+        int other_tracker_socket_id=get_other_tracker_connection();
+        if(other_tracker_socket_id != -1){
+            send_message(other_tracker_socket_id,"remove from tracker");
+            string reply=receive_message(other_tracker_socket_id);
+            send_message(other_tracker_socket_id,file_hash);
+            reply=receive_message(other_tracker_socket_id);
+            send_message(other_tracker_socket_id,address);
+            close(other_tracker_socket_id);
+        }
         /*if(seeders.find(file_hash) != seeders.end()){
             if(seeders[file_hash].find(address) != seeders[file_hash].end()){
                 seeders[file_hash].erase(address);
@@ -234,6 +261,29 @@ void serve(int client_socket_id){
             }
             fclose(fd);
         }
+    }
+    else if(message == "share from tracker"){
+        string response="ok";
+        send_message(client_socket_id,response);
+        string file_name=receive_message(client_socket_id);
+        send_message(client_socket_id,response);
+        string file_hash=receive_message(client_socket_id); // this is hash of hash
+        send_message(client_socket_id,response);
+        string address=receive_message(client_socket_id);
+        send_message(client_socket_id,response);
+        
+        access_seeders("share",file_name,file_hash,address,client_socket_id);
+    }
+    else if(message == "remove from tracker"){
+        string response="ok";
+        send_message(client_socket_id,response);
+        string file_hash=receive_message(client_socket_id); // this is hash of hash
+        send_message(client_socket_id,response);
+        string address=receive_message(client_socket_id);
+        //send_message(client_socket_id,response);
+        
+        //cout<<file_name <<" "<< file_hash << " "<<address<<"\n";
+        access_seeders("remove","",file_hash,address,client_socket_id);
     }
     //cout<<"processed\n";
     print_on_screen("processed");
