@@ -118,7 +118,7 @@ string access_download_list(string operation,string file_path){
         if(operation == "add"){
             //print_on_screen(hash_of_hash+" "+file_path+" "+bit_map);
             seeded_list[hash_of_hash]=make_pair(file_path,bit_map);
-            //print_on_screen("done sucessfully");
+            //print_on_screen(seeded_list[hash_of_hash].first);
         }
         else if(operation == "remove"){
             if(seeded_list.find(hash_of_hash) != seeded_list.end()){
@@ -299,6 +299,7 @@ void request_download(string client_address,string hash_of_hash,string destinati
             //print_on_screen("*****");
             //print_on_screen("written this much "+to_string(datasize));
             //print_on_screen(buffer);
+            
         
     }
     fclose(fd);
@@ -313,6 +314,7 @@ void start_seeding(string hash_of_hash, string file_path,int number_of_chunks){
         bit_map=bit_map+"0";
     }
     access_seeded_list("add",hash_of_hash,file_path,bit_map);
+    //print_on_screen("back here");
     //print_on_screen("done sucessfully");
 }
 string get_bit_map_from_client(string client_address,string hash_of_hash){
@@ -410,7 +412,33 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
                 }
             }
         }
-        access_download_list("add",destination_path);
+        access_download_list("add",destination_path);   // add to downloads
+
+        string bit_map="";    // start seeding
+        for(int i=0;i<number_of_chunks;i++){
+            bit_map=bit_map+"0";
+        }
+        access_seeded_list("add",hash_of_hash,destination_path,bit_map);
+
+        close(tracker_socket_id);
+
+        tracker_socket_id=get_tracker_connection();  //reopen tracker connection to notify it about seeding
+
+        send_message(tracker_socket_id,"share");
+        string reply=receive_message(tracker_socket_id);
+        print_on_screen(reply);
+
+        send_message(tracker_socket_id,destination_path);
+        reply=receive_message(tracker_socket_id);
+        print_on_screen(reply);
+        send_message(tracker_socket_id,hash_of_hash);
+        reply=receive_message(tracker_socket_id);
+        print_on_screen(reply);
+        send_message(tracker_socket_id,my_address);
+        reply=receive_message(tracker_socket_id);
+        print_on_screen(reply);
+
+        //start_seeding(hash_of_hash,destination_path,number_of_chunks);
         //access_download_list("show downloads",destination_path);
         for(int i=0;i<number_of_seeders;i++){
             if(chunks_from_seeder[i].size() > 0){
@@ -425,7 +453,7 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
             thrs[i].join();
         }
         access_download_list("downloaded",destination_path);
-
+        //print_on_screen("downloaded sucessfully");
        /* vector<int> chunk_numbers_one;
         //print_on_screen("chunk_size " + to_string(chunk_size) + "lenght of hash " + to_string(hash.length()));
         //print_on_screen("number of chunks "+to_string(number_of_chunks));
