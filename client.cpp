@@ -20,6 +20,7 @@ mutex seeded_list_mtx;
 mutex download_list_mtx;
 
 map<string,pair<string,string>> seeded_list; // key is file hash . first part of pair is file path second bit map
+map<string,pair<string,string>> duplicate_seeded_list;  // duplicate for removing when client is closed
 map<string,string> download_list; // key is file path. second part download status . key is filepath and not file hash as multiple files can be downloaded at different paths
 string my_address;
 
@@ -156,6 +157,9 @@ string access_download_list(string operation,string file_path){
                 seeded_list[hash_of_hash]=make_pair(file_path,current_bit_map);
                 //print_on_screen("modified bit map "+seeded_list[hash_of_hash].second);
             }   
+        }
+        else if(operation == "close"){
+            duplicate_seeded_list=seeded_list;
         }
     //mtx.unlock();
  }
@@ -534,7 +538,17 @@ void remove_file(int tracker_socket_id, vector<string> processed_command){
     }
     close(tracker_socket_id);
 }
-
+void remove_from_tracker_on_close(int tracker_socket_id,string hash_of_hash){  // remove torrent files separately on close
+    send_message(tracker_socket_id,"remove");
+    string response=receive_message(tracker_socket_id);
+    print_on_screen(response);
+    send_message(tracker_socket_id,hash_of_hash);
+    response=receive_message(tracker_socket_id);
+    print_on_screen(response);
+    send_message(tracker_socket_id,my_address);
+    response=receive_message(tracker_socket_id);
+    print_on_screen(response);
+}
 void command_mode(){ // give the responsibilty of closing socket to function called
     while(1){
         string command;
@@ -572,6 +586,19 @@ void command_mode(){ // give the responsibilty of closing socket to function cal
             //print_on_screen("here dude "+processed_command[0]);
             access_download_list("show downloads","");
             close(tracker_socket_id);
+        }
+        else if(processed_command[0] == "close"){
+            access_seeded_list("close","","","");
+            vector<string> simulated_command;
+            simulated_command.push_back("remove");
+            for(auto it : duplicate_seeded_list){
+                string  hash_of_hash=it.first;
+                remove_from_tracker_on_close(tracker_socket_id,hash_of_hash);
+                close(tracker_socket_id);
+                tracker_socket_id=get_tracker_connection();
+            }
+            close(tracker_socket_id);
+            exit(0);
         }
         //close(tracker_socket_id);  // give the responsibilty of closing socket to function called
         //print_on_screen("closed");
