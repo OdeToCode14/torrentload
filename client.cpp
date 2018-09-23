@@ -64,6 +64,9 @@ int get_tracker_connection(){
     string tracker_one_ip=get_ip_address(tracker_one_address);
     int tracker_one_port=stoi(get_port_address(tracker_one_address));
 
+    string tracker_two_ip=get_ip_address(tracker_two_address);
+    int tracker_two_port=stoi(get_port_address(tracker_two_address));
+
     int tracker_socket_id;
     int len;
     struct sockaddr_in address;
@@ -78,8 +81,18 @@ int get_tracker_connection(){
     result = connect(tracker_socket_id, (struct sockaddr *)&address, len);
     if(result == -1) {
         //perror("oops: client1");
-        print_on_screen("cannot connect");
-        exit(1);
+        /*print_on_screen("cannot connect");
+        exit(1);*/
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = inet_addr(tracker_two_ip.c_str()); //add tracker address here
+        address.sin_port = tracker_two_port;
+        len = sizeof(address);
+
+        result = connect(tracker_socket_id, (struct sockaddr *)&address, len);
+        if(result == -1){
+            print_on_screen("All trackers are currently down. Try after some time");
+            exit(0);
+        }
     }
     return tracker_socket_id;
 }

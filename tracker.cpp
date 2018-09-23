@@ -187,12 +187,60 @@ void serve(int client_socket_id){
             send_message(client_socket_id,"file not found");
         }*/   
     }
+    else if(message == "synchronize"){
+        string response="ok";
+        print_on_screen("got your request");
+        send_message(client_socket_id,response);
+        string rand=receive_message(client_socket_id);
+
+        ofstream file (seeder_list_file_path);
+        if (file.is_open()){
+            //myfile << "This is a line.\n";
+            //myfile << "This is another line.\n";
+            for(auto mp : seeders){
+                string hash=mp.first;
+                string file_name="";
+                string seeder_list="";
+                for(auto it : mp.second){
+                    seeder_list=seeder_list + it.first + " ";
+                    file_name=it.second;
+                }
+                if(file_name == ""){  //empty seeder list need not add
+                    continue;
+                }
+                string list_enry=hash+"-"+file_name+"-"+seeder_list;
+                file << list_enry;
+                file<<"\n";
+                //send_message(client_socket_id,list);
+                //cout<<"sending "<<list<<"\n";
+                //print_on_screen("sending "+list);
+
+                //receive_message(client_socket_id);
+            }
+            file.close();
+            print_on_screen("file prepared");
+            char buffer[256];
+            int BUFFER_SIZE=256;
+            FILE *fd = fopen(seeder_list_file_path.c_str(), "rb");
+            size_t rret, wret;
+            int bytes_read;
+            while (!feof(fd)) {
+                if ((bytes_read = fread(&buffer, 1, BUFFER_SIZE, fd)) > 0){
+                    send(client_socket_id, buffer, bytes_read, 0);
+                    print_on_screen("sent "+to_string(bytes_read));
+                }
+                else
+                    break;
+            }
+            fclose(fd);
+        }
+    }
     //cout<<"processed\n";
     print_on_screen("processed");
     close(client_socket_id);
     print_on_screen("closed connection");
 }
-/*
+
 int get_other_tracker_connection(){
     string other_tracker_ip=get_ip_address(other_tracker_address);
     int other_tracker_port=stoi(get_port_address(other_tracker_address));
@@ -215,29 +263,70 @@ int get_other_tracker_connection(){
     return other_tracker_socket_id;
 }
 
+vector<string> split_string(string command){  // improve for multiple spaces
+      char delimiter=' ';
+      vector<string> processed_command;
+      stringstream ss(command);
+      string token;
+     
+      while(getline(ss, token, delimiter)) {
+        processed_command.push_back(token);
+      }
+      return processed_command;
+}
+
 void synchronize_with_other_tracker(){
     int other_tracker_socket_id=get_other_tracker_connection();
     if(other_tracker_socket_id == -1){
-        cout<<"Other tracker is down\n";
+        //print_on_screen("Other tracker is down");
         return;
     }
     send_message(other_tracker_socket_id,"synchronize");
     string response=receive_message(other_tracker_socket_id);
-    cout<<"receiving " <<response<<"\n";
-    while(response != "done"){
-        //cout<<"received " <<response<<"\n";
-        send_message(other_tracker_socket_id,"continue");
-        response=receive_message(other_tracker_socket_id);
-        if(response != "done"){
-            int ind=response.find("-");
-            string hash=response.substr(0,ind);
-            seeders[hash]=map<string,string>();
+    print_on_screen(response);
+    send_message(other_tracker_socket_id,"ok");
+    //print_on_screen(receive_message(other_tracker_socket_id));
+    //lock_guard<mutex> guard(seeder_list_file_mtx);
+    size_t datasize;
+    FILE* fd = fopen(seeder_list_file_path.c_str(), "wb");
+    char buffer[256];
+    int BUFFER_SIZE=256;
+    while (true){
+        datasize = recv(other_tracker_socket_id, buffer, BUFFER_SIZE, 0);
+        if(datasize == 0){
+            break;
         }
-        cout<<"receiving " <<response<<"\n";
+        fwrite(&buffer, 1, datasize, fd);
+        //print_on_screen(to_string(datasize));
     }
+    fclose(fd);
+    close(other_tracker_socket_id);
+
+    string line;
+    ifstream in (seeder_list_file_path);
+    if (in.is_open()){
+        while ( getline (in,line) ){
+            int first=line.find("-");
+            string file_hash=line.substr(0,first);
+            line=line.substr(first+1);
+            int second=line.find("-");
+            string file_name=line.substr(0,second);
+            line=line.substr(second+1);
+            //print_on_screen(hash);
+            //print_on_screen(file_name);
+            vector<string> list=split_string(line);
+            for(int i=0;i<list.size();i++){
+                access_seeders("share",file_name,file_hash,list[i],-1); // send dummy socket id
+            }
+
+        }
+    in.close();
+    }
+
+
     //cout<<response<<"\n"; // ok message
 }
-*/
+
 
 int main(int argc,const char *argv[]){
 
@@ -255,6 +344,8 @@ int main(int argc,const char *argv[]){
     //cout<<seeder_list_file_path<<"\n";
     //cout<<log_file_path<<"\n";
 
+    synchronize_with_other_tracker();
+
     int server_socket_id, client_socket_id;
     unsigned int server_len, client_len;
     struct sockaddr_in server_address;
@@ -271,8 +362,6 @@ int main(int argc,const char *argv[]){
 
     listen(server_socket_id, 5);
     signal(SIGCHLD, SIG_IGN);
-
-    //synchronize_with_other_tracker();
     
     while(1) {
         char ch;
