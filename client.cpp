@@ -135,6 +135,15 @@ string access_download_list(string operation,string file_path){
                 return seeded_list[hash_of_hash].second;
             }
         }
+        else if(operation =="modify"){
+            if(seeded_list.find(hash_of_hash) != seeded_list.end()){
+                string current_bit_map=seeded_list[hash_of_hash].second;
+                int pos=stoi(bit_map);
+                current_bit_map[pos]='1';
+                seeded_list[hash_of_hash]=make_pair(file_path,current_bit_map);
+                //print_on_screen("modified bit map "+seeded_list[hash_of_hash].second);
+            }   
+        }
     //mtx.unlock();
  }
 
@@ -299,7 +308,8 @@ void request_download(string client_address,string hash_of_hash,string destinati
             //print_on_screen("*****");
             //print_on_screen("written this much "+to_string(datasize));
             //print_on_screen(buffer);
-            
+            string bit_to_change=to_string(chunk_numbers[i]);
+            access_seeded_list("modify",hash_of_hash,destination_path,bit_to_change); // modify downloaded chunk to available
         
     }
     fclose(fd);
@@ -453,7 +463,7 @@ void get_file(int tracker_socket_id, vector<string> processed_command){  // inco
             thrs[i].join();
         }
         access_download_list("downloaded",destination_path);
-        //print_on_screen("downloaded sucessfully");
+        print_on_screen("downloaded sucessfully");
        /* vector<int> chunk_numbers_one;
         //print_on_screen("chunk_size " + to_string(chunk_size) + "lenght of hash " + to_string(hash.length()));
         //print_on_screen("number of chunks "+to_string(number_of_chunks));
